@@ -1,0 +1,269 @@
+---
+title: "Project Draft"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE, error = TRUE, fig.height = 3)
+library(tidyverse)
+library(kableExtra)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+```
+
+
+# Introduction
+March Madness is one of the most anticipated sporting events each year, and it is always full of surprising upsets. We have all watched the tournament at some point, so we are interested in determining which teams are more likely to have an upset based on their seeds. Every year there are many different outcomes that make us wonder if there are any noticeable trends that occur in each tournament. The ability to predict upsets can allow for people to create better March Madness brackets, in hopes of eventually someone making a perfect bracket. In this project, we plan to answer the question: **What are the underlying factors that lead to upsets in March Madness?** Our inferences and answers were based on three parts: year, the round of the tournament, and their seed. 
+
+# Background
+> Raw Data
+
+Our dataset has data on every game in the NCAA Basketball Tournament from 1985-2019. Michael Roy collected the data and it can be found on the website, Data World. One row of the data set represents each game of every tournament and some of the variables that are in the data set are the teams playing in each game, the region that the game is from, the seed which shows the ranking of each team within each region, the final score from each team which shows who wins and moves on in the tournament, the round of the tournament which shows how far each team has made it out of 6 rounds, and the year that separates each tournament. With there being 63 games in each year’s March Madness, there are a total of 2,205 games in the dataset across the 35 years of data. This data does not include games in the First Four matchups, which began in 2011, and have taken place in every tournament since. 
+
+> Data Preparation
+
+No data had to be omitted from the dataset, as every game in the dataset had every column filled. We added an upset column that had a value of `TRUE` when there was an upset in that game, and a value of `FALSE` when there was not an upset in that game. Additionally, the Midwest Region used to be the Southwest Region, so we combined games in both regions to represent the Midwest Region. The same went for the South Region, which comprises data from the old Southeast Region and the current South Region. 
+
+
+> Other Information
+
+Some important background information is that an upset occurs when a lower seed wins a game against a higher seed. It’s also important to know that not every team in the United States makes it to the NCAA Tournament each year. The interpretation might be affected by an incorrect understanding of what the region represents. The 64 teams are split into 4 regions and ranked 1-16 which is considered their seed. It is all based on their performance throughout the season with 1 being the “best” and 16 being the “worst”.
+
+> Potential Biases / Disclaimers
+
+The biggest source of a potential bias is the occurrence of injuries during a game. If a player on the higher seed gets injured, then it is more likely for an upset to occur as the better team has now gotten worse. Likewise, if a player on the lower seed gets injured, then it is less likely for an upset to occur, as the bad team has not gotten even worse. 
+
+It is also important to note that we defined an upset occurrence as when any lower seed beats a higher-ranked seed. The NCAA considers upsets when a winning team is “seeded at least five seed lines worse than the losing team”, or in other words when the difference in seeds is at least 5. 
+ ^[https://www.ncaa.com/news/basketball-men/bracketiq/2018-03-13/heres-how-pick-march-madness-upsets-according-data]
+ 
+The four primary regions exist for the fans rather than the teams themselves. This gives fans across the country equal accessibility to attend March Madness games in person, as well as create a countrywide March Madness environment. It does NOT represent the location of the team in the United States, but rather the location at which the games are played. Since the region is irrelevant to our question, we decided not to acknowledge it in our report.
+
+There are 351 NCAA men’s basketball teams but only the best 64 teams make it to the NCAA men’s basketball tournament every year. The 64 teams that make it to the tournament changes every year. This may be due to new rosters, player injuries, new coaches, or just an overall change in skill. 
+
+	
+> In the rest of the report...
+
+We plan to analyze the different factors that lead to upsets in the NCAA Men’s Basketball Tournament from 1985-2018 in order to predict the possibility of upsets in future tournaments. We will do this by:
+
+- Examine how the proportion of upsets has changed over time(1985-2019) through graphs. We will also use a hypothesis test to compare the upsets from the first ten years of the dataset(1985-1995) to the last ten years of the dataset(2009-2019). 
+
+- Examine how the score difference in each game affects the proportion of upsets to determine whether or not upsets are more likely in closer games compared to blowout games.
+
+- Examine how the proportion of upsets is affected by the round of the tournament. We will compute a confidence interval for the proportion of upsets in round 4 based on the bar graph that shows the proportion of upsets by round. 
+	
+- Examine the seed numbers that are more likely to upset other seeds. In contrast, we will examine the seed numbers that are more likely to be upset by other seeds. We will use graphs to visually compare these two possibilities. 
+
+
+# Analysis
+
+```{r include=FALSE}
+data = read.csv("../../data/Big_Dance_CSV.csv") %>% select(year=Year,round=Round,region_num=Region.Number,region_name=Region.Name,seed_1=Seed,score_1=Score,team_1=Team,team_2=Team.1,seed_2=Seed.1,score_2=Score.1)
+
+data = data %>% mutate(
+  upset = case_when(((seed_1>seed_2) & (score_1>score_2))~TRUE,
+                    ((seed_2>seed_1) & (score_2>score_1))~TRUE,
+                    .default =FALSE))%>% mutate(region_name=case_when(
+                      str_detect(region_name,"Southwest") ~ "Midwest",
+                      str_detect(region_name,"Southeast") ~ "South",
+                      .default= region_name))
+
+#combine south and southeast, and midwest and southwest
+upset_data = data %>% group_by(region_name) %>% summarize(upsets=sum(upset),non_upsets=sum(!upset),total=upsets+non_upsets,pct = upsets/total*100)
+upset_data
+```
+
+
+
+```{r include = FALSE}
+year_data = data %>% group_by(year) %>% summarize(upsets=sum(upset),non_upsets=sum(!upset),total=upsets+non_upsets,pct = upsets/total)
+year_data
+```
+
+### By year
+First, we wanted to analyze the trends in upsets as years progressed. To do this, we grouped every game for each year and determined whether or not it was an upset or not, and then found the overall proportions of upsets. 
+
+```{r echo=FALSE}
+# TODO: replace w nicer graph#done
+ggplot(year_data,aes(x=year,y=upsets/total))+ geom_line(color="orange") + ggtitle("Percent of Upsets by Year") + xlab("Year") + ylab("Percent of games ending in an upset") + theme_minimal() + geom_vline(xintercept=2009,linetype="dashed")
+```
+
+> It appears that the most upsets occurred in 1999, while the least upsets occurred in 1993, 2007, and 2015. There does not appear to be any trend, with the proportion changing rapidly each year. Some factors affecting the increase of upsets after the decline in the mid-2000s, however, may be the extension of the three-point line in the 2009 tournament, which is marked on the graph with vertical dashes.
+
+#### Hypothesis Test
+
+To test whether there really is no difference in upsets over time, we grouped the last ten years and first ten years in our data set and calculated the percent of games ending in an upset during these time periods. 
+
+
+```{r include=FALSE}
+first_ten_years = data %>% filter(year>=1985 & year<=1995)
+last_ten_years = data %>% filter(year>=2009 & year<=2019)
+first_ten_years$year = "first ten years"
+last_ten_years$year = "last ten years"
+table = bind_rows(first_ten_years, last_ten_years)
+first_10 = first_ten_years %>% pull(upset)
+last_10 = last_ten_years %>% pull(upset)
+```
+
+```{r echo=FALSE}
+ggplot(table, aes(x = year, fill = upset)) +
+geom_bar(position = "dodge") +
+labs(title = "Upsets", subtitle = "1985-1995 versus 2009-2019",
+  y = "Number of Upsets") +
+scale_fill_manual(values = c("FALSE" = "skyblue", "TRUE" = "orange")) +
+ theme_minimal()
+```
+```{r include=FALSE}
+#t.test(first_10, last_10)
+```
+
+We then performed a t-test to compare the difference in these averages. We chose a t-test as it allows to test whether there is a true difference between two means.
+
+Using t.test, the hypothesis test yielded a df of 1383.2 and a p-value of 0.3695.
+
+> Based on the provided p-value (0.3695), there is no statistically significant difference in the number of upsets between the first ten years and the last ten years of the tournament data.
+
+
+```{r include=FALSE}
+round_data = data %>% group_by(round) %>% summarize(upsets=sum(upset),non_upsets=sum(!upset),total=upsets+non_upsets,pct = upsets/total)
+round_data
+```
+### By round
+Next, we wanted to see if there were any patterns that arose in proportion of upsets occurring in each round of the tournament. This could give insight into which rounds in one’s bracket to pick the most upsets to happen.
+
+```{r echo=FALSE}
+# TODO: replace w nicer graph#done
+ggplot(round_data,aes(x=round,y=upsets/total))+ geom_col(fill="cornflowerblue") + ggtitle("Percent of Upsets by Round") + xlab("Round") + ylab("Percent of games ending in an upset") + theme_minimal()
+```
+
+> It appears that there are significantly more upsets in the fourth round of the tournament (Elite 8), with 45% of games ending in an upset, compared to the rest of the rounds. The other rounds all have roughly the same proportion of upsets, but the championship game does have the overall lowest upset rate, at 20%. 
+
+**Disclaimer**: When examining the data, we found that many of the upsets in the fourth round occurred due to a 2 seed beating a 1 seed, which we considered to be an upset, but once again may not be recognized by the NCAA due to the teams being similarly ranked.
+
+ 
+#### Hypothesis Test and Confidence Interval for the Proportion of Upsets by Round
+
+We then performed a two-sample one-sided t-test to determine whether or not the Elite-8 has a higher proportion of upsets compared to the other rounds and obtained a p-value of 2.287x10-5. Therefore, we reject the null hypothesis and conclude that there is a higher likelihood of there being an upset in the Elite-8 compared to the other rounds.
+
+$H_0$: $prop\_upset\_elite8 = prop\_upset\_not\_elite8$
+
+$H_a$: $prop\_upset\_elite8 > prop\_upset\_not\_elite8$
+
+
+
+*Confidence interval for upset rate in the Elite-8 = 0.3665693 - 0.5334307*
+
+We are 95% confident that the proportion of upsets that occurs in the Elite-8 lies within the interval of 0.3665693 - 0.5334307.
+
+*Confidence interval for upset rate not in the Elite-8 = 0.2491553 - 0.2874065*
+
+We are 95% confident that the proportion of upsets that do not occur in the Elite-8 lies within the interval of 0.2491553 - 0.2874065.
+
+
+```{r include=FALSE}
+total_num_upsets = sum(data$upset) # the total number of upsets in all games
+
+score_diff = data %>% mutate(diff=abs(score_1-score_2)) %>% group_by(diff) %>% summarize(upsets=sum(upset),non_upsets=sum(!upset),total=upsets+non_upsets,pct = upsets/total_num_upsets)
+head(score_diff)
+```
+
+### By score difference
+Next, we compared where upsets occurred by the final score difference. We wanted to see whether or not upsets were more likely to occur in closer games as opposed to blowout games. We hypothesized that there would be more upsets in close games.
+
+```{r echo=FALSE}
+#TODO:replace w nicer graph#done
+ggplot(score_diff,aes(x=diff,y=pct))+ geom_col(fill="skyblue") + ggtitle("Proportion of upsets by final score difference") + xlab("Final score difference") + ylab("Proportion of games ending in upset") + theme_minimal()
+```
+
+> It seems that the increase in score difference has a decrease in upset rate. This aligns with our hypothesis, meaning that generally as games are closer, there is a higher chance of an upset, and when they are blowouts, there is a lower chance of an upset.
+
+
+```{r include=FALSE}
+data = data %>% mutate(winner=case_when((score_1>score_2)~"seed_1",
+                    (score_2>score_1)~"seed_2",
+                    .default ="TIE")) 
+
+
+
+
+
+  result = lapply(1:16, function(seed) {
+    data %>%
+      summarize(
+        seed = seed,
+        upsets = sum(upset & (seed_1 == seed & winner == "seed_1" | seed_2 == seed & winner== "seed_2")),
+        non_upsets = sum(!upset & (seed_1 == seed | seed_2 == seed)),
+        total = upsets + non_upsets
+      )
+  })
+
+seed_winner_data = do.call(rbind,result)%>% mutate(pct = upsets/total_num_upsets)
+
+sum(seed_winner_data$pct)
+mean(seed_winner_data$pct)
+```
+
+### By seed
+We then graphed the proportion of total upset wins that occurred by each seed. To create the graph we grouped the data by seed, found the number of upsets that occurred with that seed as a winner, and then calculated proportions by dividing these numbers by the total number of upsets in the dataset.
+
+```{r echo=FALSE}
+
+ggplot(seed_winner_data,aes(x=seed,y=pct)) + geom_line(color="orange") + geom_norm_density(8.5,2.75) + ggtitle("Proportion of Games Won by Upset, by seed") + xlab("Seed") + ylab("Proportion of games won by upset") + theme_minimal()
+```
+
+> The graph suggests that the most upsets are done by seeds 9-12 relative to the other seeds. A normal distribution is overlaid on the graph to show that the data seems to be slightly skewed left, with less upset wins occuring by seeds 5-8.
+
+Finally, in a similar process as the last graph, we calculated the proportion of upset losses that occurred against each seed. 
+
+
+```{r include=FALSE}
+result2 = lapply(1:16, function(seed) {
+    data %>%
+      summarize(
+        seed = seed,
+        upsets = sum(upset & (seed_1 == seed & winner == "seed_2" | seed_2 == seed & winner== "seed_1"))
+      )
+  })
+
+seed_loser_data = do.call(rbind,result2)%>% mutate(pct = upsets/total_num_upsets)
+```
+
+```{r echo=FALSE}
+
+ggplot(seed_loser_data,aes(x=seed,y=pct)) + geom_line(color="cornflowerblue") + ggtitle("Proportion of Games Lost by Upset, by seed") + xlab("Seed") + ylab("Proportion of games lost by upset") + theme_minimal()
+```
+
+> As expected, the highest seeds have the most upsets against them, as they can be upset by a higher number of teams. The lowest seeds have the least, as they have less teams worse than them to be upset by.
+
+**Disclaimer:** There is however a notable peak and decline at the 8 seed, which we thought may occur due to the 8-9 matchup in the first round, where the 9 seed actually has a winning record against the 8 seed.
+
+
+# Discussion
+
+**Year:**
+We determined that there is no significant difference in the relationship between the number/proportion of upsets and the year. This makes sense because the teams are different in every tournament as stated in the disclaimer section. 
+
+**Round:**
+We found that there is overall roughly the same proportion of upsets in each round, but with the Championship having the lowest rate, and the Elite 8 having far and away the highest rate. As stated before, the Championship makes sense, but the Elite 8 upset rate being so high is strange. One of the reasons we found for this happening was due to the 2 seed beating the 1 seed in this round. After the two-sample one-sided t-test was performed, we rejected the null hypothesis and concluded that there is a higher proportion of upsets in the Elite-8 compared to the other rounds. This was also supported by the confidence intervals calculated for the upset proportions in the Elite-8 versus not in the Elite-8. This is due to the intervals not overlapping with one another, proving there is a difference in the proportion of upsets.
+
+**Score Difference:**
+
+We determined that there is a higher likelihood of an upset occurring when the difference in scores is slim. This makes sense because it is less likely that an upset will occur in a blowout, and a higher chance when the score is closer in points. Additionally, throughout the tournament most games are close to begin with, so there is a low chance of the difference being high to begin with, let alone if the game ends in an upset or not. 
+
+**Seed:**
+
+We found that in the occurrence of an upset, it is most likely to be done by a seed in the range of 9-12. In the first round of the tournament, these teams play the lower end of the higher seeds, so they have a higher chance of winning that game, resulting in an upset. On the other hand, the high ranked seeds are not going to get the chance to upset an opponent simply due to the fact that they are usually the higher seed in the matchup. Additionally, the lower seeds will be less likely to have an upset seeing as they play the best teams right off the bat, and they usually end up resulting in a loss.
+
+
+**Potential Shortcomings: **
+
+One of the potential shortcomings in this project is the lack of data. Although there were over 2,000 entries worth of games/scores, there is always room for more data to be gathered. As more years go on, the data should yield better results.
+
+
+**Future Studies:**
+
+In the future, it would be beneficial to look at specific seeds performing in specific rounds to determine whether or not there is a certain seed that is more likely to be upset in a single round compared to the others. Also, gathering trends based on the conferences each team is from could enable us to determine whether certain conferences perform better than others or are more likely to be upset than others. We could analyze the data considering upsets to only be when the winning team is at least 5 seeds below the team they beat, as that is what is recognized to be a true upset by the NCAA.
+
+
+**Final Conclusion:**
+
+We found that there is a higher likelihood of there being an upset in the Elite-8 with a small score difference. Additionally, we found that a team seeded 9-12 is more likely to upset another team. In the future, be sure to keep these trends in mind when you are filling out your March Madness brackets.
